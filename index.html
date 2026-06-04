@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAMAYA - Edge AI Dashboard</title>
+    
+    <!-- Google Fonts: Outfit for clean modern feel -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- MediaPipe & Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: rgba(17, 24, 39, 0.7);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            
+            --primary: #06b6d4;      /* Cyan */
+            --secondary: #6366f1;    /* Indigo */
+            --accent: #10b981;       /* Emerald */
+            --danger: #ef4444;       /* Rose */
+            
+            --shadow-premium: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(at 10% 20%, rgba(99, 102, 241, 0.05) 0px, transparent 50%),
+                radial-gradient(at 90% 80%, rgba(6, 182, 212, 0.05) 0px, transparent 50%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            padding-bottom: 30px;
+        }
+
+        /* Header Styling */
+        header {
+            width: 100%;
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            backdrop-filter: blur(8px);
+            background: rgba(11, 15, 25, 0.8);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-section h1 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: 2px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .badge {
+            background: rgba(6, 182, 212, 0.15);
+            border: 1px solid rgba(6, 182, 212, 0.3);
+            color: var(--primary);
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .session-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            background: rgba(255, 255, 255, 0.03);
+            padding: 6px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .session-info strong {
+            color: var(--text-main);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--danger);
+            display: inline-block;
+        }
+        
+        .status-dot.active {
+            background-color: var(--accent);
+            box-shadow: 0 0 8px var(--accent);
+        }
+
+        /* Container Layout */
+        .dashboard-container {
+            max-width: 1400px;
+            width: 100%;
+            margin: 30px auto;
+            padding: 0 20px;
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 30px;
+        }
+
+        @media (max-width: 1024px) {
+            .dashboard-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Left/Right Column wrappers */
+        .column {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+
+        /* Glass Card Base */
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            backdrop-filter: blur(16px);
+            box-shadow: var(--shadow-premium);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* Video Container Styling */
+        #video-wrapper {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 4/3;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #030712;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .input_video {
+            display: none;
+        }
+
+        .output_canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); /* Mirror view for natural interaction */
+        }
+
+        /* Control Panel Buttons */
+        .control-panel {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border: none;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(6, 182, 212, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(6, 182, 212, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        /* Metrics grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        @media (max-width: 480px) {
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .metric-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            min-height: 140px;
+        }
+
+        .metric-label {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 12px;
+        }
+
+        /* Custom circular progress bar for engagement */
+        .progress-ring-container {
+            position: relative;
+            width: 80px;
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .progress-ring {
+            transform: rotate(-90deg);
+        }
+
+        .progress-ring-text {
+            position: absolute;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+
+        /* Large emoji for emotions */
+        .emoji-display {
+            font-size: 2.8rem;
+            line-height: 1;
+            margin-bottom: 6px;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.15));
+            animation: pulse-light 2s infinite ease-in-out;
+        }
+
+        .emotion-name {
+            font-size: 0.95rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        /* Stats display */
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            margin-bottom: 4px;
+        }
+
+        .stat-desc {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Chart container styling */
+        .chart-container {
+            height: 300px;
+            width: 100%;
+        }
+
+        /* Status box at bottom of left column */
+        .status-banner {
+            padding: 12px 18px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid var(--border-color);
+        }
+
+        .status-icon-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .status-spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(6, 182, 212, 0.2);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s infinite linear;
+        }
+
+        /* Animations */
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes pulse-light {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .indicator-pulse {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--primary);
+            animation: pulse-ring 1.5s infinite ease-out;
+        }
+
+        @keyframes pulse-ring {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.7);
+            }
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 6px rgba(6, 182, 212, 0);
+            }
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(6, 182, 212, 0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div class="logo-section">
+            <h1>SAMAYA</h1>
+            <span class="badge">Edge AI Analytics</span>
+        </div>
+        <div class="session-info">
+            <span id="conn-indicator" class="status-dot active"></span>
+            <span>ID Sesi: <strong id="session-id-display">-</strong></span>
+        </div>
+    </header>
+
+    <div class="dashboard-container">
+        <!-- Left Column: Camera and Controls -->
+        <div class="column">
+            <div class="card">
+                <div class="card-title">
+                    <span>Live Camera Input</span>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span class="indicator-pulse" id="camera-pulse"></span>
+                        <span style="font-size:0.8rem; color:var(--text-muted); font-weight:500;">ACTIVE PIPELINE</span>
+                    </div>
+                </div>
+                
+                <div id="video-wrapper">
+                    <video class="input_video" autoplay playsinline></video>
+                    <canvas class="output_canvas" width="640" height="480"></canvas>
+                </div>
+            </div>
+
+            <div class="control-panel">
+                <button class="btn btn-primary" id="toggle-camera">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="9" x2="15" y2="15"></line><line x1="15" y1="9" x2="9" y2="15"></line></svg>
+                    Hentikan Kamera
+                </button>
+                <button class="btn btn-secondary" id="reset-session">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
+                    Reset Statistik Sesi
+                </button>
+            </div>
+
+            <div class="status-banner">
+                <div class="status-icon-wrapper" id="status-icon">
+                    <div class="status-spinner"></div>
+                </div>
+                <div id="status-text">Menginisialisasi detektor wajah MediaPipe...</div>
+            </div>
+        </div>
+
+        <!-- Right Column: Real-time Analytics -->
+        <div class="column">
+            <!-- Metrics Grid -->
+            <div class="metrics-grid">
+                <!-- Card 1: Emotion -->
+                <div class="metric-card">
+                    <div class="metric-label">Emosi Wajah</div>
+                    <div class="emoji-display" id="metric-emoji">😐</div>
+                    <div class="emotion-name" id="metric-emotion" style="color: var(--text-muted)">-</div>
+                </div>
+
+                <!-- Card 2: Engagement -->
+                <div class="metric-card">
+                    <div class="metric-label">Engagement</div>
+                    <div class="progress-ring-container">
+                        <svg class="progress-ring" width="80" height="80">
+                            <circle class="progress-ring__circle-bg" stroke="rgba(255,255,255,0.06)" stroke-width="6" fill="transparent" r="32" cx="40" cy="40"/>
+                            <circle class="progress-ring__circle" stroke="url(#cyanGrad)" stroke-width="6" fill="transparent" r="32" cx="40" cy="40"/>
+                            <defs>
+                                <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stop-color="#06b6d4" />
+                                    <stop offset="100%" stop-color="#6366f1" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        <div class="progress-ring-text" id="engagement-percent">0%</div>
+                    </div>
+                </div>
+
+                <!-- Card 3: Session Stats -->
+                <div class="metric-card">
+                    <div class="metric-label">Rata-rata</div>
+                    <div class="stat-value" id="stat-avg">0%</div>
+                    <div class="stat-desc" id="stat-count">0 Analisis</div>
+                </div>
+            </div>
+
+            <!-- Chart Card -->
+            <div class="card">
+                <div class="card-title">
+                    <span>Tren Engagement Real-time</span>
+                    <span style="font-size:0.75rem; color:var(--text-muted); font-weight:normal; font-family:'JetBrains Mono', monospace;">Interval: 2s</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="engagementChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const videoElement = document.getElementsByClassName('input_video')[0];
+        const canvasElement = document.getElementsByClassName('output_canvas')[0];
+        const canvasCtx = canvasElement.getContext('2d');
+        
+        const statusText = document.getElementById('status-text');
+        const statusIcon = document.getElementById('status-icon');
+        const connIndicator = document.getElementById('conn-indicator');
+        const cameraPulse = document.getElementById('camera-pulse');
+        
+        const toggleCameraButton = document.getElementById('toggle-camera');
+        const resetSessionButton = document.getElementById('reset-session');
+        const sessionIdDisplay = document.getElementById('session-id-display');
+
+        // Session ID init
+        const sessionId = "SESSION-" + Math.random().toString(36).substr(2, 9).toUpperCase();
+        sessionIdDisplay.innerText = sessionId;
+
+        // Statistics state
+        let totalScores = 0;
+        let predictionCount = 0;
+        let lastApiCall = 0;
+        let isCameraRunning = true;
+        const API_INTERVAL_MS = 2000;
+
+        // Emotion config mapping
+        const emotionMetadata = {
+            happy: { emoji: "😊", label: "Happy", color: "#10b981" },
+            surprise: { emoji: "😮", label: "Surprise", color: "#06b6d4" },
+            neutral: { emoji: "😐", label: "Neutral", color: "#9ca3af" },
+            sad: { emoji: "😢", label: "Sad", color: "#3b82f6" },
+            angry: { emoji: "😠", label: "Angry", color: "#ef4444" },
+            fear: { emoji: "😨", label: "Fear", color: "#8b5cf6" },
+            disgust: { emoji: "🤢", label: "Disgust", color: "#f59e0b" }
+        };
+
+        // Circular progress configuration
+        const circle = document.querySelector('.progress-ring__circle');
+        const radius = circle.r.baseVal.value;
+        const circumference = radius * 2 * Math.PI;
+        circle.style.strokeDasharray = `${circumference} ${circumference}`;
+        circle.style.strokeDashoffset = circumference;
+
+        function setEngagementProgress(percent) {
+            const offset = circumference - (percent / 100) * circumference;
+            circle.style.strokeDashoffset = offset;
+            document.getElementById('engagement-percent').innerText = `${Math.round(percent)}%`;
+        }
+
+        // Setup Chart.js with dark-theme aesthetics
+        const ctxChart = document.getElementById('engagementChart').getContext('2d');
+        const engagementData = [];
+        const timeLabels = [];
+        const engagementChart = new Chart(ctxChart, {
+            type: 'line',
+            data: {
+                labels: timeLabels,
+                datasets: [{
+                    label: 'Skor Engagement',
+                    data: engagementData,
+                    borderColor: '#06b6d4',
+                    backgroundColor: 'rgba(6, 182, 212, 0.1)',
+                    tension: 0.35,
+                    fill: true,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#06b6d4',
+                    pointBorderColor: '#0b0f19',
+                    pointBorderWidth: 2,
+                    borderWidth: 3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.05)',
+                            drawTicks: false
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.4)',
+                            font: {
+                                family: 'JetBrains Mono',
+                                size: 10
+                            }
+                        }
+                    },
+                    y: {
+                        min: 0,
+                        max: 1.0,
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.05)',
+                            drawTicks: false
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.4)',
+                            stepSize: 0.2,
+                            callback: function(value) {
+                                return (value * 100) + '%';
+                            },
+                            font: {
+                                family: 'JetBrains Mono',
+                                size: 10
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Update statistics cards
+        function updateStats(score) {
+            predictionCount++;
+            totalScores += score;
+            const avg = totalScores / predictionCount;
+            
+            document.getElementById('stat-avg').innerText = `${Math.round(avg * 100)}%`;
+            document.getElementById('stat-count').innerText = `${predictionCount} Analisis`;
+        }
+
+        // Draw futuristic bounding box
+        function drawHolographicBox(ctx, x, y, w, h, emotionText, color) {
+            ctx.save();
+            ctx.translate(canvasElement.width, 0);
+            ctx.scale(-1, 1); // Flip coordinates back for drawing because output_canvas is mirrored
+
+            // Mirror crop coordinates
+            const mx = canvasElement.width - x - w;
+
+            // Box shadow/glow
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = color;
+
+            // Draw bounding box thin borders
+            ctx.strokeStyle = color + "66"; // opacity 40%
+            ctx.lineWidth = 1;
+            ctx.strokeRect(mx, y, w, h);
+
+            // Draw Corners (thicker, high-tech bracket style)
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 4;
+            ctx.shadowBlur = 15;
+            
+            const bracketLength = Math.min(w, h) * 0.15; // 15% of size
+            
+            // Top Left
+            ctx.beginPath();
+            ctx.moveTo(mx + bracketLength, y);
+            ctx.lineTo(mx, y);
+            ctx.lineTo(mx, y + bracketLength);
+            ctx.stroke();
+
+            // Top Right
+            ctx.beginPath();
+            ctx.moveTo(mx + w - bracketLength, y);
+            ctx.lineTo(mx + w, y);
+            ctx.lineTo(mx + w, y + bracketLength);
+            ctx.stroke();
+
+            // Bottom Left
+            ctx.beginPath();
+            ctx.moveTo(mx, y + h - bracketLength);
+            ctx.lineTo(mx, y + h);
+            ctx.lineTo(mx + bracketLength, y + h);
+            ctx.stroke();
+
+            // Bottom Right
+            ctx.beginPath();
+            ctx.moveTo(mx + w - bracketLength, y + h);
+            ctx.lineTo(mx + w, y + h);
+            ctx.lineTo(mx + w, y + h - bracketLength);
+            ctx.stroke();
+
+            // Label Banner background
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = color;
+            const bannerHeight = 24;
+            const bannerWidth = Math.max(100, w * 0.5);
+            ctx.fillRect(mx, y - bannerHeight, bannerWidth, bannerHeight);
+
+            // Label Text
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 11px Outfit";
+            ctx.textAlign = "center";
+            ctx.fillText(emotionText.toUpperCase(), mx + (bannerWidth / 2), y - 7);
+
+            ctx.restore();
+        }
+
+        // Handle results from face detection
+        let activeFaceDetection = null;
+        function onResults(results) {
+            if (!isCameraRunning) return;
+            
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.detections && results.detections.length > 0) {
+                // Get primary face
+                const detection = results.detections[0];
+                const bbox = detection.boundingBox;
+
+                // MediaPipe relative coordinates to absolute pixel coordinates
+                const pxX = bbox.xCenter * canvasElement.width - (bbox.width * canvasElement.width / 2);
+                const pxY = bbox.yCenter * canvasElement.height - (bbox.height * canvasElement.height / 2);
+                const pxW = bbox.width * canvasElement.width;
+                const pxH = bbox.height * canvasElement.height;
+
+                activeFaceDetection = { bbox, pxX, pxY, pxW, pxH };
+
+                // Get current status/emotion from UI
+                const currentEmotion = document.getElementById('metric-emotion').innerText.toLowerCase();
+                const meta = emotionMetadata[currentEmotion] || { color: '#06b6d4', label: 'Mendeteksi...' };
+
+                // Draw bounding box
+                drawHolographicBox(canvasCtx, pxX, pxY, pxW, pxH, meta.label, meta.color);
+
+                // API trigger check
+                const now = Date.now();
+                if (now - lastApiCall >= API_INTERVAL_MS) {
+                    lastApiCall = now;
+                    sendCroppedFaceToAPI(results.image, bbox);
+                }
+            } else {
+                activeFaceDetection = null;
+                statusText.innerText = "Mendeteksi wajah... Posisikan wajah Anda di depan kamera.";
+                statusIcon.innerHTML = '<div class="status-spinner"></div>';
+            }
+            canvasCtx.restore();
+        }
+
+        async function sendCroppedFaceToAPI(videoFrame, bbox) {
+            const cropCanvas = document.createElement('canvas');
+            const cropCtx = cropCanvas.getContext('2d');
+
+            const vw = videoElement.videoWidth;
+            const vh = videoElement.videoHeight;
+
+            // Ensure bounding box calculations are bound correctly
+            const x = Math.max(0, (bbox.xCenter - bbox.width / 2) * vw);
+            const y = Math.max(0, (bbox.yCenter - bbox.height / 2) * vh);
+            const w = Math.min(vw - x, bbox.width * vw);
+            const h = Math.min(vh - y, bbox.height * vh);
+
+            cropCanvas.width = w;
+            cropCanvas.height = h;
+            cropCtx.drawImage(videoElement, x, y, w, h, 0, 0, w, h);
+
+            cropCanvas.toBlob(async (blob) => {
+                const formData = new FormData();
+                formData.append("file", blob, "face_edge_crop.jpg");
+                formData.append("session_id", sessionId);
+
+                try {
+                    connIndicator.className = "status-dot active";
+                    
+                    const response = await fetch("/predict", {
+                        method: "POST",
+                        body: formData
+                    });
+                    
+                    if (!response.ok) throw new Error("API response error");
+                    
+                    const data = await response.json();
+
+                    if (data.error) {
+                        statusText.innerText = `Error backend: ${data.error}`;
+                        return;
+                    }
+
+                    // Update metrics
+                    const emotion = data.emotion;
+                    const meta = emotionMetadata[emotion] || { emoji: "😐", label: emotion, color: "#9ca3af" };
+                    
+                    document.getElementById('metric-emoji').innerText = meta.emoji;
+                    
+                    const elEmotion = document.getElementById('metric-emotion');
+                    elEmotion.innerText = meta.label;
+                    elEmotion.style.color = meta.color;
+
+                    setEngagementProgress(data.engagement_score * 100);
+                    updateStats(data.engagement_score);
+
+                    statusText.innerText = `Terdeteksi emosi [${meta.label.toUpperCase()}] dengan tingkat engagement ${Math.round(data.engagement_score * 100)}%`;
+                    statusIcon.innerHTML = `<span style="font-size:1.1rem">${meta.emoji}</span>`;
+
+                    // Update Chart
+                    const timeStr = new Date().toLocaleTimeString('id-ID', { hour12: false });
+                    timeLabels.push(timeStr);
+                    engagementData.push(data.engagement_score);
+
+                    if (timeLabels.length > 15) {
+                        timeLabels.shift();
+                        engagementData.shift();
+                    }
+                    engagementChart.update();
+
+                } catch (error) {
+                    console.error("Gagal terhubung ke server FastAPI", error);
+                    statusText.innerText = "Gagal terhubung ke API backend (FastAPI mati).";
+                    statusIcon.innerHTML = '⚠️';
+                    connIndicator.className = "status-dot";
+                }
+            }, 'image/jpeg');
+        }
+
+        // Initialize MediaPipe Face Detection
+        const faceDetection = new FaceDetection({
+            locateFile: (file) => {
+                return `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${file}`;
+            }
+        });
+
+        faceDetection.setOptions({
+            model: 'short',
+            minDetectionConfidence: 0.6
+        });
+
+        faceDetection.onResults(onResults);
+
+        // Webcam management
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                if (isCameraRunning) {
+                    await faceDetection.send({ image: videoElement });
+                }
+            },
+            width: 640,
+            height: 480
+        });
+
+        camera.start().then(() => {
+            statusText.innerText = "Detektor siap. Wajah Anda sedang dianalisis...";
+            cameraPulse.className = "indicator-pulse";
+        }).catch(err => {
+            console.error(err);
+            statusText.innerText = "Error: Kamera tidak terdeteksi atau izin ditolak.";
+            statusIcon.innerHTML = '⚠️';
+            cameraPulse.style.backgroundColor = 'var(--danger)';
+        });
+
+        // Controller Actions
+        toggleCameraButton.addEventListener('click', () => {
+            if (isCameraRunning) {
+                isCameraRunning = false;
+                canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+                canvasCtx.save();
+                canvasCtx.translate(canvasElement.width, 0);
+                canvasCtx.scale(-1, 1);
+                canvasCtx.fillStyle = "rgba(0, 0, 0, 0.7)";
+                canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+                canvasCtx.fillStyle = "#ffffff";
+                canvasCtx.font = "20px Outfit";
+                canvasCtx.textAlign = "center";
+                canvasCtx.fillText("KAMERA DIJEDA", canvasElement.width / 2, canvasElement.height / 2);
+                canvasCtx.restore();
+                
+                toggleCameraButton.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Mulai Kamera`;
+                toggleCameraButton.className = "btn btn-primary";
+                cameraPulse.style.backgroundColor = 'var(--danger)';
+                statusText.innerText = "Kamera dinonaktifkan.";
+                statusIcon.innerHTML = '⏸️';
+            } else {
+                isCameraRunning = true;
+                toggleCameraButton.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="9" x2="15" y2="15"></line><line x1="15" y1="9" x2="9" y2="15"></line></svg> Hentikan Kamera`;
+                toggleCameraButton.className = "btn btn-secondary";
+                cameraPulse.className = "indicator-pulse";
+                statusText.innerText = "Kamera diaktifkan kembali. Menganalisis...";
+                statusIcon.innerHTML = '<div class="status-spinner"></div>';
+            }
+        });
+
+        resetSessionButton.addEventListener('click', () => {
+            totalScores = 0;
+            predictionCount = 0;
+            timeLabels.length = 0;
+            engagementData.length = 0;
+            
+            document.getElementById('metric-emoji').innerText = "😐";
+            const elEmotion = document.getElementById('metric-emotion');
+            elEmotion.innerText = "-";
+            elEmotion.style.color = "var(--text-muted)";
+            
+            setEngagementProgress(0);
+            
+            document.getElementById('stat-avg').innerText = "0%";
+            document.getElementById('stat-count').innerText = "0 Analisis";
+            
+            engagementChart.update();
+            
+            statusText.innerText = "Sesi analisis berhasil direset.";
+            statusIcon.innerHTML = '🔄';
+        });
+    </script>
+</body>
+
+</html>

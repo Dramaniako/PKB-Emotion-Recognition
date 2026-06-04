@@ -1,0 +1,44 @@
+# Virtual environments
+.venv/
+.venv-1/
+.venv_wsl/
+venv_samaya/
+env/
+ENV/
+
+# Python cache and temporary files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Database files (local logs)
+*.db
+samaya_logs.db
+samaya_metrics.db
+
+# Large dataset folders
+dataset_affectnet/
+dataset_fer2013/
+dataset_rafdb/
+
+# Large model binaries
+*.keras
+*.h5
+samaya_rafdb_advanced.keras
+samaya_rafdb_mobilenetv2_best.keras
+samaya_rafdb_mobilenetv2_optimized.keras
+
+# Local temporary crops and generated outputs
+last_crop.jpg
+samaya_rafdb_confusion_matrix_advanced.png
+samaya_rafdb_confusion_matrix_optimized.png
+
+# IDE and system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
