@@ -338,7 +338,7 @@ def main():
     else:
         print("[WARN] GPU/CUDA tidak terdeteksi! Pelatihan akan berjalan di CPU.")
         
-    fer_weights_path = 'fer2013_efficientnetb2_pytorch.pth'
+    fer_weights_path = 'models_archive/fer2013_efficientnetb2_pytorch.pth'
     raf_weights_path = 'samaya_rafdb_sota_pytorch_b2_adamw.pth'
     
     criterion = CategoricalFocalCrossentropy(alpha=0.25, gamma=2.0, label_smoothing=0.1)

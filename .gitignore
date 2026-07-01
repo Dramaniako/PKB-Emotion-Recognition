@@ -19,22 +19,30 @@ __pycache__/
 samaya_logs.db
 samaya_metrics.db
 
-# Large dataset folders
-dataset_affectnet/
-dataset_fer2013/
-dataset_rafdb/
-
 # Large model binaries
 *.keras
 *.h5
+*.pth
 samaya_rafdb_advanced.keras
 samaya_rafdb_mobilenetv2_best.keras
 samaya_rafdb_mobilenetv2_optimized.keras
 
+# Large datasets and zip archives
+*.zip
+dataset_affectnet/
+dataset_fer2013/
+dataset_rafdb/
+
 # Local temporary crops and generated outputs
 last_crop.jpg
-samaya_rafdb_confusion_matrix_advanced.png
-samaya_rafdb_confusion_matrix_optimized.png
+samaya_rafdb_confusion_matrix_*.png
+
+# Credentials and sensitive information
+zoom_client_id.txt
+zoom_secret.txt
+
+# Linux installation artifacts
+*.deb
 
 # IDE and system files
 .vscode/

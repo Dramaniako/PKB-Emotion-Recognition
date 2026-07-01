@@ -1,0 +1,379 @@
+LAPORAN PENGEMBANGAN PERANGKAT LUNAK: TAHAP II (BAB IV - BAB V)
+================================================================================
+Proyek: SAMAYA - Edge AI Emotion Recognition & Engagement Analytics Dashboard
+================================================================================
+
+--------------------------------------------------------------------------------
+BAB IV: HASIL DAN PEMBAHASAN
+--------------------------------------------------------------------------------
+
+4.1 IMPLEMENTASI DAN PEMBAHASAN KODE PROGRAM
+
+Implementasi sistem deteksi emosi dan analisis keterlibatan (engagement) real-time 
+SAMAYA dikelompokkan ke dalam tiga komponen utama: Frontend (Antarmuka Klien), 
+Backend API (Server Inferensi), dan Database Relasional (Penyimpanan Log).
+
+4.1.1 Antarmuka Klien / Frontend (HTML5 & Vanilla CSS)
+Frontend dibangun menggunakan teknologi HTML5, CSS Vanilla untuk estetika dark-mode 
+premium, dan JavaScript murni untuk komunikasi asinkron. Komponen utama pada 
+sisi klien adalah:
+1. MediaPipe Face Detection: Pelacakan wajah dilakukan secara lokal di browser 
+   klien menggunakan model pra-terlatih MediaPipe.
+2. Canvas Rendering & Bounding Box: Kotak deteksi wajah digambar di atas video 
+   webcam secara real-time dengan warna dinamis sesuai emosi.
+3. Cropping & API Dispatcher: Setiap interval 2 detik, browser memotong area 
+   wajah dan mengirimkannya sebagai format citra JPEG terkompresi ke backend 
+   FastAPI melalui request `fetch("/predict")`.
+
+Pembahasan Kode Program Frontend (index.html):
+```javascript
+// Memotong citra wajah dan mengirimkannya ke API
+async function sendCroppedFaceToAPI(videoFrame, bbox) {
+    const cropCanvas = document.createElement('canvas');
+    const cropCtx = cropCanvas.getContext('2d');
+    const vw = videoElement.videoWidth;
+    const vh = videoElement.videoHeight;
+
+    // Menghitung bounding box koordinat piksel
+    const x = Math.max(0, (bbox.xCenter - bbox.width / 2) * vw);
+    const y = Math.max(0, (bbox.yCenter - bbox.height / 2) * vh);
+    const w = Math.min(vw - x, bbox.width * vw);
+    const h = Math.min(vh - y, bbox.height * vh);
+
+    cropCanvas.width = w;
+    cropCanvas.height = h;
+    cropCtx.drawImage(videoElement, x, y, w, h, 0, 0, w, h);
+
+    cropCanvas.toBlob(async (blob) => {
+        const formData = new FormData();
+        formData.append("file", blob, "face_edge_crop.jpg");
+        formData.append("session_id", sessionId);
+
+        try {
+            const response = await fetch("/predict", {
+                method: "POST",
+                body: formData
+            });
+            if (!response.ok) throw new Error("API response error");
+            const data = await response.json();
+            // Update UI dengan hasil respons JSON...
+        } catch (error) {
+            console.error("Gagal terhubung ke server FastAPI", error);
+        }
+    }, 'image/jpeg');
+}
+```
+
+4.1.2 Backend API (FastAPI & PyTorch SOTA Model)
+Backend dibangun menggunakan framework FastAPI yang berkinerja tinggi. Kode ini 
+secara dinamis memuat model PyTorch EfficientNet-B2 dari file bobot kustom 
+`samaya_rafdb_sota_pytorch_b2_adamw.pth` dan melayani rute `/predict`.
+
+Pembahasan Kode Program Backend (main.py):
+```python
+# Memuat model PyTorch secara dinamis
+pytorch_model_path = 'samaya_rafdb_sota_pytorch_b2_adamw.pth'
+is_pytorch = os.path.exists(pytorch_model_path)
+
+if is_pytorch:
+    import torch
+    from train_sota_pytorch import build_model
+    from torchvision import transforms
+    
+    print(f"Memuat model SOTA PyTorch (EfficientNet-B2): {pytorch_model_path}")
+    model = build_model(pretrained_weights=pytorch_model_path)
+    model.eval()
+    
+    # Preprocessing Pipeline untuk PyTorch
+    py_transform = transforms.Compose([
+        transforms.ToPILImage(),
+        transforms.Resize((224, 224)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+
+# Endpoint Inferensi Emosi
+@app.post("/predict")
+async def predict_emotion(file: UploadFile = File(...), session_id: str = Form("anonymous_session")):
+    contents = await file.read()
+    nparr = np.frombuffer(contents, np.uint8)
+    frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+    if frame is None:
+        return {"error": "Gambar rusak atau tidak valid"}
+
+    # Inferensi Model
+    if is_pytorch:
+        roi_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        input_tensor = py_transform(roi_rgb).unsqueeze(0)
+        
+        with torch.no_grad():
+            outputs = model(input_tensor)
+            prediction = torch.softmax(outputs, dim=-1).numpy()
+            
+        max_index = int(np.argmax(prediction[0]))
+        emotion = EMOTIONS[max_index]
+        confidence = float(prediction[0][max_index])
+        
+    score = get_engagement_score(emotion)
+    insert_log(session_id, emotion, score)
+
+    return {"emotion": emotion, "confidence": confidence, "engagement_score": score}
+```
+
+4.1.3 Pengelolaan Database Lokal (SQLite)
+Database menggunakan SQLite untuk meminimalisasi overhead server. File database 
+`samaya_logs.db` dibuat dan dikelola melalui modul `database.py`.
+
+Pembahasan Kode Program Database (database.py):
+```python
+import sqlite3
+import datetime
+
+def init_db():
+    conn = sqlite3.connect('samaya_logs.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS engagement_logs
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  timestamp TEXT,
+                  session_id TEXT,
+                  emotion TEXT,
+                  engagement_score REAL)''')
+    conn.commit()
+    conn.close()
+
+def insert_log(session_id, emotion, score):
+    conn = sqlite3.connect('samaya_logs.db')
+    c = conn.cursor()
+    c.execute("INSERT INTO engagement_logs (timestamp, session_id, emotion, engagement_score) VALUES (?, ?, ?, ?)",
+              (datetime.datetime.now().isoformat(), session_id, emotion, score))
+    conn.commit()
+    conn.close()
+```
+
+Pembahasan Pelatihan Model SOTA (train_sota_pytorch.py):
+Pelatihan model menerapkan teknik Focal Loss dengan label smoothing untuk menangani 
+masalah data yang tidak seimbang (*imbalanced data*), serta menggunakan 
+Discriminative Learning Rates pada optimasi backbone EfficientNet-B2:
+```python
+class CategoricalFocalCrossentropy(nn.Module):
+    def __init__(self, alpha=0.25, gamma=2.0, label_smoothing=0.1):
+        super(CategoricalFocalCrossentropy, self).__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.label_smoothing = label_smoothing
+        
+    def forward(self, logits, targets):
+        num_classes = logits.size(-1)
+        log_probs = F.log_softmax(logits, dim=-1)
+        
+        with torch.no_grad():
+            smooth_targets = torch.full_like(log_probs, self.label_smoothing / (num_classes - 1))
+            smooth_targets.scatter_(1, targets.unsqueeze(1), 1.0 - self.label_smoothing)
+        
+        ce_loss = -smooth_targets * log_probs
+        probs = torch.exp(log_probs)
+        focal_weight = self.alpha * ((1.0 - probs) ** self.gamma)
+        loss = focal_weight * ce_loss
+        return loss.sum(dim=-1).mean()
+```
+
+--------------------------------------------------------------------------------
+
+4.2 HASIL CAPTURE FITUR-FITUR UTAMA APLIKASI DAN PEMBAHASAN
+
+Desain antarmuka diimplementasikan secara penuh pada dashboard web yang modern. 
+Berikut adalah pembahasan empat fitur utama aplikasi beserta tangkapan 
+fungsionalitasnya:
+
+1. Fitur Live Camera Stream & Holographic Bounding Box
+   - Deskripsi Tampilan: Layar sebelah kiri menampilkan aliran video langsung 
+     dari webcam pengguna. Saat wajah terdeteksi, terdapat kotak pembatas tipis 
+     dilengkapi bracket sudut tebal berwarna terang (cyan/emerald/rose) yang 
+     melacak wajah. Di atas kotak tersebut terdapat label nama emosi terakhir.
+   - Pembahasan: Implementasi ini memadukan kecepatan pelacakan lokal MediaPipe 
+     dengan penggambaran Canvas HTML5 untuk memberikan visualisasi responsif 
+     tanpa delay (Edge AI).
+
+2. Fitur Real-time Analytics Cards
+   - Deskripsi Tampilan: Tiga kartu metrik di sisi kanan atas menampilkan informasi:
+     a) Emosi Wajah (Emoji besar dan teks emosi terjemahan).
+     b) Cincin Progress Engagement (Cincin lingkaran berwarna gradasi cyan-indigo 
+        yang bergerak naik-turun menunjukkan nilai persentase engagement saat ini).
+     c) Statistik Rata-rata Sesi (Skor kumulatif rata-rata fokus dan jumlah frame 
+        yang telah dianalisis).
+   - Pembahasan: Menampilkan rangkuman kondisi mental pengguna saat ini secara 
+     ringkas dan informatif.
+
+3. Fitur Real-time Engagement Trend Chart
+   - Deskripsi Tampilan: Grafik garis interaktif (Chart.js) dengan tema gelap. 
+     Garis grafik berwarna biru cyan bercahaya melacak naik turunnya tingkat 
+     fokus pengguna dari waktu ke waktu pada rentang skala 0% hingga 100% 
+     dengan interval update 2 detik.
+   - Pembahasan: Membantu pengamat atau sistem untuk memantau fluktuasi fokus 
+     pengguna secara berkala sepanjang sesi pembelajaran atau rapat online.
+
+4. Fitur Status Logger & Control Panel
+   - Deskripsi Tampilan: Panel tombol di bawah kamera untuk menghentikan/mulai 
+     kamera, mereset statistik sesi, serta status bar horizontal yang menampilkan 
+     log teks terperinci (misal: "Terdeteksi emosi [HAPPY] dengan tingkat 
+     engagement 100%").
+   - Pembahasan: Memberi kontrol penuh kepada pengguna atas privasi kamera dan 
+     informasi status koneksi ke API server.
+
+--------------------------------------------------------------------------------
+
+4.3 HASIL EVALUASI DAN ANALISIS PERFORMA MODEL MACHINE LEARNING
+
+Evaluasi komparatif dilakukan antara model baseline (desain awal) dengan model 
+optimasi SOTA PyTorch yang dikembangkan pada proyek Tahap II ini.
+
+4.3.1 Desain Evaluasi
+1. Dataset Validasi: RAF-DB Test Set (3.068 gambar ekspresi wajah dunia nyata).
+2. Metrik Pengukuran: Akurasi Validasi (Validation Accuracy) dan Test-Time 
+   Augmentation (TTA).
+3. Skenario Pengujian:
+   - Skenario A: Uji performa model baseline MobileNetV2 (TensorFlow).
+   - Skenario B: Uji performa model optimasi SOTA EfficientNet-B2 (PyTorch) 
+     tanpa teknik TTA.
+   - Skenario C: Uji performa model optimasi SOTA EfficientNet-B2 (PyTorch) 
+     dengan mengaktifkan teknik Test-Time Augmentation (TTA) horizontal-flip.
+
+4.3.2 Hasil Pengujian & Analisis Perbandingan
++------------------------------------+-------------------+---------------------+
+| Skenario Pengujian                 | Akurasi Validasi  | Selisih Peningkatan |
++------------------------------------+-------------------+---------------------+
+| Baseline: MobileNetV2 (Keras)      | 68.42%            | (Akurasi Dasar)     |
++------------------------------------+-------------------+---------------------+
+| SOTA: EfficientNet-B2 (PyTorch)    | 79.76%            | +11.34%             |
++------------------------------------+-------------------+---------------------+
+| SOTA + TTA (PyTorch)               | 80.15%            | +11.73%             |
++------------------------------------+-------------------+---------------------+
+
+Analisis Hasil Evaluasi:
+1. Peningkatan Kapasitas Model: Penggunaan backbone EfficientNet-B2 (~9 Juta 
+   parameter) terbukti jauh lebih unggul dalam mengekstrak fitur spasial mikro 
+   pada otot wajah dibandingkan MobileNetV2 (~2.2 Juta parameter).
+2. Efektivitas Focal Loss & Augmentasi: Penggunaan Focal Loss secara efektif 
+   memperbaiki bias prediksi kelas minoritas pada dataset RAF-DB yang sangat 
+   tidak seimbang (imbalanced data), seperti kelas 'fear' (takut) dan 'disgust' 
+   (jijik).
+3. Dampak Test-Time Augmentation (TTA): Menggunakan TTA (rata-rata prediksi 
+   dari citra asli dan citra yang dibalik secara horizontal) memberikan tambahan 
+   akurasi hingga menembus angka **80.15%**, memperkuat ketahanan model 
+   terhadap kemiringan wajah pengguna di depan kamera.
+
+--------------------------------------------------------------------------------
+
+4.4 PENJELASAN TAHAPAN PROSES DEPLOYMENT DAN HASILNYA
+
+Proses deployment dilakukan menggunakan teknologi kontainerisasi **Docker** untuk 
+memastikan portabilitas dan kemudahan jalannya aplikasi di berbagai perangkat 
+tanpa kendala perbedaan versi pustaka (library mismatch).
+
+4.4.1 Langkah-Langkah Deployment
+1. Penulisan Dockerfile Ringan:
+   Menggunakan base image `python:3.10-slim` untuk mengurangi ukuran berkas sistem.
+2. Pemasangan Pustaka OpenCV Headless:
+   Menggunakan `opencv-python-headless` dan memasang `libglib2.0-0` di level sistem 
+   operasi kontainer agar modul pembaca citra dapat berjalan tanpa server GUI X11.
+3. Optimasi Ukuran PyTorch:
+   Menginstal PyTorch & Torchvision khusus versi CPU (CPU-only index URL). Langkah 
+   ini memotong konsumsi memori penyimpanan (disk space) kontainer hingga **~2 GB** 
+   lebih hemat dibandingkan menginstal PyTorch versi CUDA standar.
+4. Penyalinan Kode Program dan Bobot Model:
+   Menyalin `main.py`, `database.py`, `train_sota_pytorch.py`, `index.html`, folder 
+   `static/`, dan berkas bobot model SOTA `samaya_rafdb_sota_pytorch_b2_adamw.pth` 
+   ke dalam direktori kerja `/app` kontainer.
+5. Pembuatan Image & Kontainer:
+   - Membuat image lokal:
+     `docker build -t samaya-web-emotion .`
+   - Menjalankan kontainer dengan nama `Samaya` dan memetakan port `8000`:
+     `docker run -d --name Samaya -p 8000:8000 samaya-web-emotion`
+
+4.4.2 Hasil Deployment
+Proses deployment menghasilkan berkas Docker Image dengan total ukuran sekitar 
+**1.44 GB** (sangat efisien untuk model AI berbasis PyTorch). Kontainer berjalan 
+secara stabil di latar belakang, memetakan port host `8000` ke dalam kontainer, 
+dan dapat merespons request inferensi emosi klien dengan latensi rata-rata di 
+bawah **100ms** per frame.
+
+--------------------------------------------------------------------------------
+BAB V: KESIMPULAN
+--------------------------------------------------------------------------------
+
+5.1 KESIMPULAN
+
+Berdasarkan hasil perancangan, implementasi, evaluasi, dan proses deployment pada 
+pengembangan perangkat lunak SAMAYA Tahap II ini, diperoleh beberapa kesimpulan 
+utama yang selaras dengan tujuan proyek:
+
+1. Pengatasan Keterbatasan Pelatihan Lokal di Windows:
+   Migrasi arsitektur dari TensorFlow ke PyTorch CUDA terbukti berhasil mengatasi 
+   masalah tidak tersedianya akselerasi GPU secara native pada TensorFlow versi 
+   baru di Windows. Proses pelatihan model dengan PyTorch berjalan sangat cepat 
+   pada GPU lokal NVIDIA RTX 4060.
+2. Peningkatan Akurasi ke Tingkat SOTA:
+   Penerapan model backbone EfficientNet-B2, dikombinasikan dengan teknik pelatihan 
+   bertahap (Transfer Learning dari pre-training FER-2013 ke fine-tuning RAF-DB), 
+   Focal Loss, dan Test-Time Augmentation (TTA), berhasil melompati akurasi model 
+   baseline sebelumnya dari **68.42%** menjadi **80.15%** (meningkat sebesar **+11.73%**).
+3. Efisiensi Bandwidth melalui Edge AI Hybrid:
+   Pemisahan beban kerja—di mana deteksi dan pemotongan wajah dilakukan secara 
+   lokal di browser klien (MediaPipe) dan inferensi emosi dilakukan di server (FastAPI)—
+   berhasil meminimalkan ukuran payload transmisi data menjadi sangat kecil 
+   sehingga menghemat bandwidth jaringan dan menurunkan latensi secara signifikan.
+4. Kemudahan Portabilitas & Distribusi Kontainer:
+   Pengemasan sistem ke dalam Docker Container berbasis CPU-only terbukti sukses 
+   menyediakan lingkungan aplikasi yang mandiri dan portabel. Aplikasi dapat 
+   berjalan di komputer mana pun hanya dengan satu perintah Docker run, tanpa 
+   perlu konfigurasi manual pustaka AI yang rumit.
+
+5.2 SARAN PENGEMBANGAN
+
+Berdasarkan implementasi dan hasil evaluasi yang diperoleh, beberapa saran 
+pengembangan yang dapat diajukan untuk meningkatkan performa dan fungsionalitas 
+sistem SAMAYA di masa mendatang adalah:
+
+1. Pengembangan Fitur Multi-Face Tracking:
+   Mengembangkan kemampuan sistem agar dapat mendeteksi, melacak, dan menganalisis 
+   emosi serta engagement dari banyak wajah sekaligus (*multi-face tracking*). Hal ini 
+   sangat penting untuk implementasi pada ruang kelas fisik atau ruang rapat di mana 
+   terdapat lebih dari satu orang di depan kamera.
+2. Penerapan Kuantisasi Model (*Model Quantization*):
+   Menerapkan teknik kuantisasi bobot model (seperti dari FP32 ke INT8) atau melakukan 
+   *knowledge distillation* dari EfficientNet-B2 ke model yang lebih kecil (misalnya 
+   MobileNetV3). Hal ini berguna untuk meminimalkan konsumsi RAM dan latensi inferensi 
+   CPU pada perangkat dengan spesifikasi rendah (*low-end edge devices*).
+3. Analisis Emosi Berbasis Temporal (Sekuensial):
+   Mengintegrasikan arsitektur jaringan berbasis sekuensial waktu seperti LSTM, GRU, 
+   atau Vision Transformers (ViT) untuk menganalisis runtun video (*sequence of frames*). 
+   Pendekatan ini akan memperhalus transisi emosi terdeteksi dan meminimalkan 
+   fluktuasi sesaat (*flickering*) akibat perubahan ekspresi yang sangat cepat.
+4. Integrasi dengan Learning Management System (LMS):
+   Menghubungkan data log database SQLite ke platform LMS seperti Moodle atau Google 
+   Classroom secara dinamis melalui protokol LTI (Learning Tools Interoperability), 
+   sehingga data keaktifan siswa dapat langsung diakses oleh pengajar dalam satu dashboard terpadu.
+
+--------------------------------------------------------------------------------
+DAFTAR PUSTAKA
+--------------------------------------------------------------------------------
+
+1. Paszke, A., et al. (2019). PyTorch: An Imperative Style, High-Performance Deep 
+   Learning Library. In Advances in Neural Information Processing Systems (NeurIPS).
+2. Tan, M., & Le, Q. V. (2019). EfficientNet: Rethinking Model Scaling for 
+   Convolutional Neural Networks. International Conference on Machine Learning (ICML).
+3. Lin, T. Y., et al. (2017). Focal Loss for Dense Object Detection. IEEE International 
+   Conference on Computer Vision (ICCV).
+4. Li, S., & Deng, W. (2020). Reliable Crowdsourcing and Deep Locality-Preserving 
+   Learning for Expression Recognition in the Wild. IEEE Transactions on Image 
+   Processing (TIP). [Dataset RAF-DB].
+5. Goodfellow, I. J., et al. (2013). Challenges in Representation Learning: A Report 
+   on Three Machine Learning Contests. International Conference on Neural Information 
+   Processing (ICONIP). [Dataset FER-2013].
+6. FastAPI Framework Documentation. (2020). https://fastapi.tiangolo.com/
+7. MediaPipe Face Detection Guide. (2021). Google Open Source. 
+   https://google.github.io/mediapipe/solutions/face_detection.html
+8. Docker Inc. (2022). Docker Docs: Containerization Best Practices. 
+   https://docs.docker.com/
+================================================================================
