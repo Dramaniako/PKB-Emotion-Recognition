@@ -10,23 +10,27 @@ ENV PYTHONUNBUFFERED=1
 # Tentukan direktori kerja di dalam container
 WORKDIR /app
 
-# Perbarui paket manajer dan pasang build-essential (untuk kemudahan kompilasi jika diperlukan)
+# Perbarui paket manajer dan pasang libglib2.0-0 untuk OpenCV Headless
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Salin daftar dependensi terlebih dahulu (memanfaatkan Docker Layer Caching)
 COPY requirements.txt .
 
-# Instal seluruh dependensi Python tanpa menyimpan cache (menghemat ruang disk)
+# Instal PyTorch & Torchvision versi CPU untuk menghemat ukuran image (~2 GB lebih hemat)
+# lalu pasang dependensi lain dari requirements.txt
 RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir -r requirements.txt
 
-# Salin berkas-berkas aplikasi utama
+# Salin berkas-berkas aplikasi utama, aset statis, dan model PyTorch SOTA
 COPY main.py .
 COPY database.py .
+COPY train_sota_pytorch.py .
 COPY index.html .
-COPY samaya_rafdb_advanced.keras .
+COPY static/ ./static/
+COPY samaya_rafdb_sota_pytorch_b2_adamw.pth .
 
 # Ekspos port 8000 agar dapat diakses dari host machine
 EXPOSE 8000

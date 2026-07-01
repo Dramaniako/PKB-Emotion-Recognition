@@ -3,4 +3,5 @@ uvicorn
 python-multipart
 numpy
 opencv-python-headless
-tensorflow-cpu
+pillow
+tqdm

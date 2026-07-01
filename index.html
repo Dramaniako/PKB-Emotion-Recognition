@@ -5,16 +5,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SAMAYA - Edge AI Dashboard</title>
-    
+
     <!-- Google Fonts: Outfit for clean modern feel -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    
-    <!-- MediaPipe & Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+
+    <!-- MediaPipe & Chart.js loaded locally -->
+    <script src="/static/camera_utils.js"></script>
+    <script src="/static/face_detection.js"></script>
+    <script src="/static/chart.js"></script>
+
+    <script src="https://source.zoom.us/zoom-apps-sdk-1.12.0.min.js"></script>
+
 
     <style>
         :root {
@@ -23,12 +28,16 @@
             --border-color: rgba(255, 255, 255, 0.08);
             --text-main: #f3f4f6;
             --text-muted: #9ca3af;
-            
-            --primary: #06b6d4;      /* Cyan */
-            --secondary: #6366f1;    /* Indigo */
-            --accent: #10b981;       /* Emerald */
-            --danger: #ef4444;       /* Rose */
-            
+
+            --primary: #06b6d4;
+            /* Cyan */
+            --secondary: #6366f1;
+            /* Indigo */
+            --accent: #10b981;
+            /* Emerald */
+            --danger: #ef4444;
+            /* Rose */
+
             --shadow-premium: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
         }
 
@@ -42,7 +51,7 @@
 
         body {
             background-color: var(--bg-color);
-            background-image: 
+            background-image:
                 radial-gradient(at 10% 20%, rgba(99, 102, 241, 0.05) 0px, transparent 50%),
                 radial-gradient(at 90% 80%, rgba(6, 182, 212, 0.05) 0px, transparent 50%);
             background-attachment: fixed;
@@ -119,7 +128,7 @@
             background-color: var(--danger);
             display: inline-block;
         }
-        
+
         .status-dot.active {
             background-color: var(--accent);
             box-shadow: 0 0 8px var(--accent);
@@ -201,7 +210,8 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
-            transform: scaleX(-1); /* Mirror view for natural interaction */
+            transform: scaleX(-1);
+            /* Mirror view for natural interaction */
         }
 
         /* Control Panel Buttons */
@@ -312,7 +322,7 @@
             font-size: 2.8rem;
             line-height: 1;
             margin-bottom: 6px;
-            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.15));
+            filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.15));
             animation: pulse-light 2s infinite ease-in-out;
         }
 
@@ -373,12 +383,21 @@
 
         /* Animations */
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         @keyframes pulse-light {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.05);
+            }
         }
 
         .indicator-pulse {
@@ -394,10 +413,12 @@
                 transform: scale(0.95);
                 box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.7);
             }
+
             70% {
                 transform: scale(1);
                 box-shadow: 0 0 0 6px rgba(6, 182, 212, 0);
             }
+
             100% {
                 transform: scale(0.95);
                 box-shadow: 0 0 0 0 rgba(6, 182, 212, 0);
@@ -430,7 +451,7 @@
                         <span style="font-size:0.8rem; color:var(--text-muted); font-weight:500;">ACTIVE PIPELINE</span>
                     </div>
                 </div>
-                
+
                 <div id="video-wrapper">
                     <video class="input_video" autoplay playsinline></video>
                     <canvas class="output_canvas" width="640" height="480"></canvas>
@@ -439,11 +460,19 @@
 
             <div class="control-panel">
                 <button class="btn btn-primary" id="toggle-camera">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="9" x2="15" y2="15"></line><line x1="15" y1="9" x2="9" y2="15"></line></svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="9" y1="9" x2="15" y2="15"></line>
+                        <line x1="15" y1="9" x2="9" y2="15"></line>
+                    </svg>
                     Hentikan Kamera
                 </button>
                 <button class="btn btn-secondary" id="reset-session">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+                    </svg>
                     Reset Statistik Sesi
                 </button>
             </div>
@@ -472,8 +501,10 @@
                     <div class="metric-label">Engagement</div>
                     <div class="progress-ring-container">
                         <svg class="progress-ring" width="80" height="80">
-                            <circle class="progress-ring__circle-bg" stroke="rgba(255,255,255,0.06)" stroke-width="6" fill="transparent" r="32" cx="40" cy="40"/>
-                            <circle class="progress-ring__circle" stroke="url(#cyanGrad)" stroke-width="6" fill="transparent" r="32" cx="40" cy="40"/>
+                            <circle class="progress-ring__circle-bg" stroke="rgba(255,255,255,0.06)" stroke-width="6"
+                                fill="transparent" r="32" cx="40" cy="40" />
+                            <circle class="progress-ring__circle" stroke="url(#cyanGrad)" stroke-width="6"
+                                fill="transparent" r="32" cx="40" cy="40" />
                             <defs>
                                 <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                                     <stop offset="0%" stop-color="#06b6d4" />
@@ -497,7 +528,9 @@
             <div class="card">
                 <div class="card-title">
                     <span>Tren Engagement Real-time</span>
-                    <span style="font-size:0.75rem; color:var(--text-muted); font-weight:normal; font-family:'JetBrains Mono', monospace;">Interval: 2s</span>
+                    <span
+                        style="font-size:0.75rem; color:var(--text-muted); font-weight:normal; font-family:'JetBrains Mono', monospace;">Interval:
+                        2s</span>
                 </div>
                 <div class="chart-container">
                     <canvas id="engagementChart"></canvas>
@@ -510,12 +543,33 @@
         const videoElement = document.getElementsByClassName('input_video')[0];
         const canvasElement = document.getElementsByClassName('output_canvas')[0];
         const canvasCtx = canvasElement.getContext('2d');
-        
+ 
+        // Global error handlers for debugging
+        window.addEventListener('error', function(event) {
+            console.error("Global JS Error:", event.error);
+            if (statusText) {
+                statusText.innerText = `JS Error: ${event.message}`;
+            }
+            if (statusIcon) {
+                statusIcon.innerHTML = '⚠️';
+            }
+        });
+
+        window.addEventListener('unhandledrejection', function(event) {
+            console.error("Unhandled promise rejection:", event.reason);
+            if (statusText) {
+                statusText.innerText = `Promise Error: ${event.reason}`;
+            }
+            if (statusIcon) {
+                statusIcon.innerHTML = '⚠️';
+            }
+        });
+
         const statusText = document.getElementById('status-text');
         const statusIcon = document.getElementById('status-icon');
         const connIndicator = document.getElementById('conn-indicator');
         const cameraPulse = document.getElementById('camera-pulse');
-        
+
         const toggleCameraButton = document.getElementById('toggle-camera');
         const resetSessionButton = document.getElementById('reset-session');
         const sessionIdDisplay = document.getElementById('session-id-display');
@@ -523,6 +577,21 @@
         // Session ID init
         const sessionId = "SESSION-" + Math.random().toString(36).substr(2, 9).toUpperCase();
         sessionIdDisplay.innerText = sessionId;
+
+        // Panggil saat halaman dimuat di dalam Zoom App
+        if (window.zoomSdk) {
+            zoomSdk.config({
+                capabilities: [
+                    'getMeetingContext',
+                    'getUserContext'
+                ]
+            }).then(() => {
+                console.log("Zoom Apps SDK berhasil diinisialisasi!");
+            }).catch((error) => {
+                console.error("Gagal menginisialisasi Zoom SDK:", error);
+            });
+        }
+
 
         // Statistics state
         let totalScores = 0;
@@ -609,7 +678,7 @@
                         ticks: {
                             color: 'rgba(255, 255, 255, 0.4)',
                             stepSize: 0.2,
-                            callback: function(value) {
+                            callback: function (value) {
                                 return (value * 100) + '%';
                             },
                             font: {
@@ -627,7 +696,7 @@
             predictionCount++;
             totalScores += score;
             const avg = totalScores / predictionCount;
-            
+
             document.getElementById('stat-avg').innerText = `${Math.round(avg * 100)}%`;
             document.getElementById('stat-count').innerText = `${predictionCount} Analisis`;
         }
@@ -654,9 +723,9 @@
             ctx.strokeStyle = color;
             ctx.lineWidth = 4;
             ctx.shadowBlur = 15;
-            
+
             const bracketLength = Math.min(w, h) * 0.15; // 15% of size
-            
+
             // Top Left
             ctx.beginPath();
             ctx.moveTo(mx + bracketLength, y);
@@ -705,7 +774,7 @@
         let activeFaceDetection = null;
         function onResults(results) {
             if (!isCameraRunning) return;
-            
+
             canvasCtx.save();
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
             canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
@@ -768,14 +837,14 @@
 
                 try {
                     connIndicator.className = "status-dot active";
-                    
+
                     const response = await fetch("/predict", {
                         method: "POST",
                         body: formData
                     });
-                    
+
                     if (!response.ok) throw new Error("API response error");
-                    
+
                     const data = await response.json();
 
                     if (data.error) {
@@ -786,9 +855,9 @@
                     // Update metrics
                     const emotion = data.emotion;
                     const meta = emotionMetadata[emotion] || { emoji: "😐", label: emotion, color: "#9ca3af" };
-                    
+
                     document.getElementById('metric-emoji').innerText = meta.emoji;
-                    
+
                     const elEmotion = document.getElementById('metric-emotion');
                     elEmotion.innerText = meta.label;
                     elEmotion.style.color = meta.color;
@@ -822,7 +891,7 @@
         // Initialize MediaPipe Face Detection
         const faceDetection = new FaceDetection({
             locateFile: (file) => {
-                return `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${file}`;
+                return `/static/${file}`;
             }
         });
 
@@ -837,51 +906,118 @@
         const camera = new Camera(videoElement, {
             onFrame: async () => {
                 if (isCameraRunning) {
-                    await faceDetection.send({ image: videoElement });
+                    try {
+                        await faceDetection.send({ image: videoElement });
+                    } catch (err) {
+                        console.error("Error in faceDetection.send:", err);
+                        statusText.innerText = `Error Deteksi: ${err.message || err}`;
+                        statusIcon.innerHTML = '⚠️';
+                    }
                 }
             },
             width: 640,
             height: 480
         });
 
-        camera.start().then(() => {
-            statusText.innerText = "Detektor siap. Wajah Anda sedang dianalisis...";
+        function drawPausedScreen(text = "KAMERA DIJEDA") {
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.save();
+            canvasCtx.translate(canvasElement.width, 0);
+            canvasCtx.scale(-1, 1);
+            canvasCtx.fillStyle = "rgba(0, 0, 0, 0.75)";
+            canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.fillStyle = "#ffffff";
+            canvasCtx.font = "20px Outfit";
+            canvasCtx.textAlign = "center";
+            canvasCtx.fillText(text, canvasElement.width / 2, canvasElement.height / 2);
+            canvasCtx.restore();
+        }
+
+        function startCameraStream() {
+            statusText.innerText = "Mengaktifkan kamera...";
+            statusIcon.innerHTML = '<div class="status-spinner"></div>';
             cameraPulse.className = "indicator-pulse";
-        }).catch(err => {
-            console.error(err);
-            statusText.innerText = "Error: Kamera tidak terdeteksi atau izin ditolak.";
-            statusIcon.innerHTML = '⚠️';
+            cameraPulse.style.backgroundColor = '';
+
+            return camera.start()
+                .then(() => {
+                    isCameraRunning = true;
+                    statusText.innerText = "Detektor siap. Wajah Anda sedang dianalisis...";
+                    
+                    toggleCameraButton.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="9" x2="15" y2="15"></line><line x1="15" y1="9" x2="9" y2="15"></line></svg> Hentikan Kamera`;
+                    toggleCameraButton.className = "btn btn-secondary";
+                })
+                .catch(err => {
+                    console.error("Gagal memulai kamera:", err);
+                    isCameraRunning = false;
+                    
+                    let errorTip = "Error: Kamera tidak terdeteksi atau izin ditolak.";
+                    const errName = err.name || "";
+                    const errMsg = err.message || "";
+                    
+                    if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+                        errorTip = "Izin Ditolak: Pastikan izin kamera untuk Zoom/Browser diaktifkan di Settings Windows/macOS.";
+                    } else if (errName === 'NotReadableError' || errName === 'TrackStartError') {
+                        errorTip = "Kamera Sedang Digunakan: Matikan video meeting Zoom Anda (Stop Video) atau tutup aplikasi lain yang menggunakan kamera.";
+                    } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
+                        errorTip = "Kamera Tidak Ditemukan: Pastikan webcam Anda sudah terpasang dan aktif.";
+                    } else if (errName === 'OverconstrainedError') {
+                        errorTip = "Error Resolusi: Kamera tidak mendukung resolusi yang diminta.";
+                    } else {
+                        errorTip = `Gagal membuka kamera: ${errName} - ${errMsg}`;
+                    }
+
+                    // Check device count
+                    if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+                        navigator.mediaDevices.enumerateDevices().then(devices => {
+                            const videoDevices = devices.filter(d => d.kind === 'videoinput');
+                            if (videoDevices.length === 0) {
+                                statusText.innerText = `${errorTip} (0 kamera terdeteksi di sistem)`;
+                            } else {
+                                statusText.innerText = `${errorTip} (${videoDevices.length} kamera terdeteksi)`;
+                            }
+                        }).catch(() => {
+                            statusText.innerText = errorTip;
+                        });
+                    } else {
+                        statusText.innerText = errorTip;
+                    }
+
+                    statusIcon.innerHTML = '⚠️';
+                    cameraPulse.style.backgroundColor = 'var(--danger)';
+                    cameraPulse.classList.remove("indicator-pulse");
+                    
+                    toggleCameraButton.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Mulai Kamera`;
+                    toggleCameraButton.className = "btn btn-primary";
+                    
+                    drawPausedScreen("IZIN KAMERA DITOLAK");
+                });
+        }
+
+        function stopCameraStream() {
+            isCameraRunning = false;
+            statusText.innerText = "Kamera dinonaktifkan.";
+            statusIcon.innerHTML = '⏸️';
             cameraPulse.style.backgroundColor = 'var(--danger)';
-        });
+            cameraPulse.classList.remove("indicator-pulse");
+            
+            toggleCameraButton.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Mulai Kamera`;
+            toggleCameraButton.className = "btn btn-primary";
+            
+            drawPausedScreen("KAMERA DIJEDA");
+            
+            return camera.stop().catch(err => console.error("Gagal menghentikan kamera:", err));
+        }
+
+        // Jalankan kamera saat pertama kali dimuat
+        startCameraStream();
 
         // Controller Actions
         toggleCameraButton.addEventListener('click', () => {
             if (isCameraRunning) {
-                isCameraRunning = false;
-                canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-                canvasCtx.save();
-                canvasCtx.translate(canvasElement.width, 0);
-                canvasCtx.scale(-1, 1);
-                canvasCtx.fillStyle = "rgba(0, 0, 0, 0.7)";
-                canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
-                canvasCtx.fillStyle = "#ffffff";
-                canvasCtx.font = "20px Outfit";
-                canvasCtx.textAlign = "center";
-                canvasCtx.fillText("KAMERA DIJEDA", canvasElement.width / 2, canvasElement.height / 2);
-                canvasCtx.restore();
-                
-                toggleCameraButton.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Mulai Kamera`;
-                toggleCameraButton.className = "btn btn-primary";
-                cameraPulse.style.backgroundColor = 'var(--danger)';
-                statusText.innerText = "Kamera dinonaktifkan.";
-                statusIcon.innerHTML = '⏸️';
+                stopCameraStream();
             } else {
-                isCameraRunning = true;
-                toggleCameraButton.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="9" x2="15" y2="15"></line><line x1="15" y1="9" x2="9" y2="15"></line></svg> Hentikan Kamera`;
-                toggleCameraButton.className = "btn btn-secondary";
-                cameraPulse.className = "indicator-pulse";
-                statusText.innerText = "Kamera diaktifkan kembali. Menganalisis...";
-                statusIcon.innerHTML = '<div class="status-spinner"></div>';
+                startCameraStream();
             }
         });
 
@@ -890,19 +1026,19 @@
             predictionCount = 0;
             timeLabels.length = 0;
             engagementData.length = 0;
-            
+
             document.getElementById('metric-emoji').innerText = "😐";
             const elEmotion = document.getElementById('metric-emotion');
             elEmotion.innerText = "-";
             elEmotion.style.color = "var(--text-muted)";
-            
+
             setEngagementProgress(0);
-            
+
             document.getElementById('stat-avg').innerText = "0%";
             document.getElementById('stat-count').innerText = "0 Analisis";
-            
+
             engagementChart.update();
-            
+
             statusText.innerText = "Sesi analisis berhasil direset.";
             statusIcon.innerHTML = '🔄';
         });
